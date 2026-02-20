@@ -30,6 +30,7 @@ Phone (Plaud) → iCloud AudioInbox → icloud_watcher.py → AudioProcessing �
 - Anthropic API key (console.anthropic.com)
 - Node.js 18+ and mcp-obsidian installed globally
 - Plaud device and mobile app
+- Amphetamine (App Store) — keeps Mac awake with lid closed
 
 ## Project Structure
 
@@ -38,8 +39,9 @@ Phone (Plaud) → iCloud AudioInbox → icloud_watcher.py → AudioProcessing �
 - icloud_watcher.py — Mac-native iCloud monitor and file copier
 - Dockerfile — Container definition
 - docker-compose.yml — Docker service configuration
-- mcp-config.json — Obsidian MCP server configuration
+- mcp-config.example.json — Template for Obsidian MCP server configuration
 - .env — API keys and environment variables (not committed)
+- .gitignore — Excludes .env and mcp-config.json from version control
 
 ## Setup
 
@@ -53,7 +55,9 @@ OBSIDIAN_API_KEY=your_obsidian_rest_api_key_here
 OBSIDIAN_HOST=host.docker.internal
 OBSIDIAN_PORT=27124
 
-### 3. Update mcp-config.json with your Obsidian API key and port
+### 3. Create your mcp-config.json from the example
+cp mcp-config.example.json mcp-config.json
+Then edit mcp-config.json and replace the placeholder values with your real Obsidian API key and port.
 
 ### 4. Install the Obsidian Local REST API plugin
 - Open Obsidian → Settings → Community Plugins → Browse
@@ -78,9 +82,16 @@ nohup caffeinate -i python3 icloud_watcher.py > icloud_watcher.log 2>&1 &
 3. The pipeline detects it automatically and processes it within a few minutes
 4. Check your Obsidian vault under Obsidian Vault/Plaud Notes for the new note
 
+## Security
+
+- .env and mcp-config.json are excluded from version control via .gitignore
+- Never commit your API keys — use mcp-config.example.json as a template instead
+- Rotate your Obsidian API key in Settings → Local REST API if it is ever exposed
+
 ## Notes
 
 - Obsidian must be open on your Mac for the Local REST API plugin to be active
-- Add Obsidian to Login Items to keep it running at startup
+- Add Obsidian to Login Items (System Settings → General → Login Items) to keep it running at startup
 - Use Amphetamine to prevent your Mac from sleeping with the lid closed
-- The .env file is excluded from git — never commit your API keys
+- To check iCloud watcher logs: cat ~/audio-pipeline/icloud_watcher.log
+- To stop the iCloud watcher: pkill -f icloud_watcher.py
