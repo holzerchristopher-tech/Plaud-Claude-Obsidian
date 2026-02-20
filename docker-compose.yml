@@ -1,0 +1,11 @@
+services:
+  audio-pipeline:
+    build: .
+    volumes:
+      - "/Users/${USER}/Library/Mobile Documents/com~apple~CloudDocs/AudioInbox:/watch/input"
+      - "./mcp-config.json:/app/mcp-config.json"
+    env_file:
+      - .env
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+    restart: unless-stopped
