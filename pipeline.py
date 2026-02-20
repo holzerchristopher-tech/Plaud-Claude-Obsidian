@@ -24,7 +24,7 @@ def create_obsidian_note_via_mcp(filename, transcript):
     client = anthropic.Anthropic(api_key=ANTHROPIC_API_KEY)
     timestamp = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
     base_name = os.path.splitext(filename)[0]
-    note_title = f"{datetime.now().strftime('%Y-%m-%d')} - {base_name}"
+    note_title = datetime.now().strftime("%Y-%m-%d") + " - " + base_name
 
     tools = [
         {
@@ -53,24 +53,29 @@ def create_obsidian_note_via_mcp(filename, transcript):
     ]
 
     def handle_tool_call(tool_name, tool_input):
-        headers = {
-            "Authorization": f"Bearer {OBSIDIAN_API_KEY}",
-            "Content-Type": "application/json"
-        }
         if tool_name == "obsidian_create_note":
             path = tool_input["path"]
             content = tool_input["content"]
+            note_headers = {
+                "Authorization": f"Bearer {OBSIDIAN_API_KEY}",
+                "Content-Type": "text/markdown"
+            }
             response = requests.put(
                 f"{OBSIDIAN_BASE_URL}/vault/{path}",
-                headers=headers,
+                headers=note_headers,
                 data=content.encode("utf-8")
             )
+            print(f"[API RESPONSE] Status: {response.status_code}, Body: {response.text}")
             return {"success": response.status_code in [200, 201, 204], "status": response.status_code}
         elif tool_name == "obsidian_list_notes":
             folder = tool_input["folder"]
+            list_headers = {
+                "Authorization": f"Bearer {OBSIDIAN_API_KEY}",
+                "Content-Type": "application/json"
+            }
             response = requests.get(
                 f"{OBSIDIAN_BASE_URL}/vault/{folder}/",
-                headers=headers
+                headers=list_headers
             )
             if response.status_code == 200:
                 return response.json()
@@ -79,25 +84,7 @@ def create_obsidian_note_via_mcp(filename, transcript):
     messages = [
         {
             "role": "user",
-            "content": f"""You are an Obsidian note manager. Create a well-structured note for this audio recording.
-
-Audio file: {filename}
-Recorded: {timestamp}
-
-Transcript:
-{transcript}
-
-Instructions:
-1. First list the existing notes in "Audio Summaries" to understand context
-2. Create a new note at path: Audio Summaries/{note_title}.md
-3. The note should include:
-   - YAML frontmatter with created date, source filename, and relevant tags
-   - A clear 2-3 sentence summary section
-   - Key points as bullet points
-   - Any action items mentioned
-   - Links to related existing notes if relevant
-   - The full transcript at the bottom
-4. Use proper Obsidian markdown including [[wiki-links]] where appropriate"""
+            "content": f"You are an Obsidian note manager. Create a well-structured note for this audio recording.\n\nAudio file: {filename}\nRecorded: {timestamp}\n\nTranscript:\n{transcript}\n\nInstructions:\n1. First list the existing notes in Obsidian Vault/Plaud Notes to understand context\n2. Create a new note at path: Obsidian Vault/Plaud Notes/{note_title}.md\n3. The note should include:\n   - YAML frontmatter with created date, source filename, and relevant tags\n   - A clear 2-3 sentence summary section\n   - Key points as bullet points\n   - Any action items mentioned\n   - The full transcript at the bottom\n4. Use proper Obsidian markdown including wiki-links where appropriate"
         }
     ]
 
