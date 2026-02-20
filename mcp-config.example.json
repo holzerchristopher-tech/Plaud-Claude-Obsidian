@@ -1,0 +1,13 @@
+{
+  "mcpServers": {
+    "obsidian": {
+      "command": "mcp-obsidian",
+      "args": [],
+      "env": {
+        "OBSIDIAN_API_KEY": "your_obsidian_rest_api_key_here",
+        "OBSIDIAN_HOST": "host.docker.internal",
+        "OBSIDIAN_PORT": "27124"
+      }
+    }
+  }
+}
