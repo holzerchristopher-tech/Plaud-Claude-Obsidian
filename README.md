@@ -91,9 +91,10 @@ nohup caffeinate -i python3 icloud_watcher.py > icloud_watcher.log 2>&1 &
 
 ## Notes
 - After every reboot run ~/audio-pipeline/start.sh to restart Docker and the iCloud watcher
-
 - Obsidian must be open on your Mac for the Local REST API plugin to be active
 - Add Obsidian to Login Items (System Settings → General → Login Items) to keep it running at startup
 - Use Amphetamine to prevent your Mac from sleeping with the lid closed
 - To check iCloud watcher logs: cat ~/audio-pipeline/icloud_watcher.log
 - To stop the iCloud watcher: pkill -f icloud_watcher.py
+- max_tokens set to 4096 to handle longer transcripts
+- Transcript length and preview logged for debugging
