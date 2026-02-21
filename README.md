@@ -25,7 +25,7 @@ Plaud → iCloud AudioInbox → icloud_watcher.py → AudioProcessing → Docker
 
 ## Note Template
 
--User Preferred Template
+- User Preferred Template
 
 You can customize this template in pipeline.py to match your own workflow.
 
