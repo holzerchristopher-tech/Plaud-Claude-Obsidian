@@ -18,7 +18,10 @@ ARCHIVE_DIR = "/watch/input/processed"
 def transcribe_audio(file_path):
     print(f"[TRANSCRIBING] {file_path}")
     result = whisper_model.transcribe(file_path)
-    return result["text"]
+    text = result["text"]
+    print(f"[TRANSCRIPT] Length: {len(text)} chars — Preview: {text[:200]}")
+    return text
+
 
 def create_obsidian_note_via_mcp(filename, transcript):
     client = anthropic.Anthropic(api_key=ANTHROPIC_API_KEY)
@@ -119,7 +122,7 @@ Instructions:
     while True:
         response = client.messages.create(
             model="claude-sonnet-4-6",
-            max_tokens=2048,
+            max_tokens=4096,
             tools=tools,
             messages=messages
         )
