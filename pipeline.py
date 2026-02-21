@@ -84,7 +84,33 @@ def create_obsidian_note_via_mcp(filename, transcript):
     messages = [
         {
             "role": "user",
-            "content": f"You are an Obsidian note manager. Create a well-structured note for this audio recording.\n\nAudio file: {filename}\nRecorded: {timestamp}\n\nTranscript:\n{transcript}\n\nInstructions:\n1. First list the existing notes in Obsidian Vault/Plaud Notes to understand context\n2. Create a new note at path: Obsidian Vault/Plaud Notes/{note_title}.md\n3. The note should include:\n   - YAML frontmatter with created date, source filename, and relevant tags\n   - A clear 2-3 sentence summary section\n   - Key points as bullet points\n   - Any action items mentioned\n   - The full transcript at the bottom\n4. Use proper Obsidian markdown including wiki-links where appropriate"
+            "content": f"""You are an Obsidian note manager. Create a well-structured note for this audio recording.
+
+Audio file: {filename}
+Recorded: {timestamp}
+
+Transcript:
+{transcript}
+
+Instructions:
+1. First list the existing notes in Obsidian Vault/Plaud Notes to understand context
+2. Create a new note at path: Obsidian Vault/Plaud Notes/{note_title}.md
+3. The note should include:
+   - YAML frontmatter with created date, source filename, and relevant tags
+   - The full transcript at the bottom under a Transcript heading
+4. Use the following template for the note body. If nothing is identified for a section write Nothing to report:
+
+## Notable Recognitions for Safety, Environmental, or Reliability - Impacting Performance this week:
+
+## Significant Operational Upsets, Releases, or notable events this week:
+
+## Any needs for additional support, including manpower constraints:
+
+## Upcoming events, including maintenance tasks for the next week or major maintenance coming up that needs to be communicated:
+
+## Additional Comments:
+
+5. Use proper Obsidian markdown including wiki-links where appropriate"""
         }
     ]
 
