@@ -4,6 +4,7 @@ services:
     volumes:
       - "/Users/${USER}/Library/Mobile Documents/com~apple~CloudDocs/AudioInbox:/watch/input"
       - "./mcp-config.json:/app/mcp-config.json"
+      - "./pipeline.py:/app/pipeline.py"
     env_file:
       - .env
     extra_hosts:

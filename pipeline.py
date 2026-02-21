@@ -87,7 +87,7 @@ def create_obsidian_note_via_mcp(filename, transcript):
     messages = [
         {
             "role": "user",
-            "content": f"""You are an Obsidian note manager. Create a well-structured note for this audio recording.
+            "content": f"""You are an Obsidian note manager. You MUST call the obsidian_create_note tool to create a note — do not write the note content in your reply.
 
 Audio file: {filename}
 Recorded: {timestamp}
@@ -96,12 +96,11 @@ Transcript:
 {transcript}
 
 Instructions:
-1. First list the existing notes in Obsidian Vault/Plaud Notes to understand context
-2. Create a new note at path: Obsidian Vault/Plaud Notes/{note_title}.md
-3. The note should include:
+1. Call obsidian_create_note with path: Plaud Notes/{note_title}.md
+2. The note content must include:
    - YAML frontmatter with created date, source filename, and relevant tags
    - The full transcript at the bottom under a Transcript heading
-4. Use the following template for the note body. If nothing is identified for a section write Nothing to report:
+3. Use the following template for the note body. If nothing is identified for a section write Nothing to report:
 
 ## Notable Recognitions for Safety, Environmental, or Reliability - Impacting Performance this week:
 
@@ -113,7 +112,8 @@ Instructions:
 
 ## Additional Comments:
 
-5. Use proper Obsidian markdown including wiki-links where appropriate"""
+4. Use proper Obsidian markdown including wiki-links where appropriate
+5. You MUST call obsidian_create_note — this is required, do not skip it."""
         }
     ]
 
