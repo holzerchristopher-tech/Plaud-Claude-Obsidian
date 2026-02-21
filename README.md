@@ -27,12 +27,7 @@ Plaud → iCloud AudioInbox → icloud_watcher.py → AudioProcessing → Docker
 
 Each note is created using this structure. If nothing is identified for a section, Claude writes "Nothing to report":
 
-- Notable Recognitions for Safety, Environmental, or Reliability - Impacting Performance this week
-- Significant Operational Upsets, Releases, or notable events this week
-- Any needs for additional support, including manpower constraints
-- Upcoming events, including maintenance tasks for the next week or major maintenance coming up that needs to be communicated
-- Additional Comments
-- Transcript
+-User Preferred Template
 
 You can customize this template in pipeline.py to match your own workflow.
 
