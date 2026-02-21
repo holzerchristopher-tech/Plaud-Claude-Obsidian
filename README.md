@@ -25,8 +25,6 @@ Plaud → iCloud AudioInbox → icloud_watcher.py → AudioProcessing → Docker
 
 ## Note Template
 
-Each note is created using this structure. If nothing is identified for a section, Claude writes "Nothing to report":
-
 -User Preferred Template
 
 You can customize this template in pipeline.py to match your own workflow.
