@@ -42,6 +42,7 @@ Phone (Plaud) → iCloud AudioInbox → icloud_watcher.py → AudioProcessing �
 - mcp-config.example.json — Template for Obsidian MCP server configuration
 - .env — API keys and environment variables (not committed)
 - .gitignore — Excludes .env and mcp-config.json from version control
+- start.sh — Single command to restart the full pipeline after reboot
 
 ## Setup
 
@@ -89,6 +90,7 @@ nohup caffeinate -i python3 icloud_watcher.py > icloud_watcher.log 2>&1 &
 - Rotate your Obsidian API key in Settings → Local REST API if it is ever exposed
 
 ## Notes
+- After every reboot run ~/audio-pipeline/start.sh to restart Docker and the iCloud watcher
 
 - Obsidian must be open on your Mac for the Local REST API plugin to be active
 - Add Obsidian to Login Items (System Settings → General → Login Items) to keep it running at startup

@@ -2,3 +2,5 @@
 mcp-config.json
 __pycache__/
 *.pyc
+icloud_watcher.log
+processed_files.log
