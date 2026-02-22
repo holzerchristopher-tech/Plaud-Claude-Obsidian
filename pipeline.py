@@ -101,26 +101,28 @@ def create_obsidian_note_via_mcp(filename, transcript):
     ]
 
     def handle_tool_call(tool_name, tool_input):
-        headers = {
-            "Authorization": f"Bearer {OBSIDIAN_API_KEY}",
-            "Content-Type": "application/json"
-        }
+        auth_header = {"Authorization": f"Bearer {OBSIDIAN_API_KEY}"}
         try:
             if tool_name == "obsidian_create_note":
                 response = requests.put(
                     f"{OBSIDIAN_BASE_URL}/vault/{tool_input['path']}",
-                    headers=headers,
+                    headers={**auth_header, "Content-Type": "text/markdown"},
                     data=tool_input["content"].encode("utf-8"),
                     timeout=OBSIDIAN_TIMEOUT_SECONDS
                 )
-                return {"success": response.status_code in [200, 201, 204], "status": response.status_code}
+                success = response.status_code in [200, 201, 204]
+                print(f"[OBSIDIAN] create_note → HTTP {response.status_code} | path: {tool_input['path']}")
+                if not success:
+                    print(f"[OBSIDIAN] Error body: {response.text[:300]}")
+                return {"success": success, "status": response.status_code}
 
             elif tool_name == "obsidian_list_notes":
                 response = requests.get(
                     f"{OBSIDIAN_BASE_URL}/vault/{tool_input['folder']}/",
-                    headers=headers,
+                    headers={**auth_header, "Content-Type": "application/json"},
                     timeout=OBSIDIAN_TIMEOUT_SECONDS
                 )
+                print(f"[OBSIDIAN] list_notes → HTTP {response.status_code} | folder: {tool_input['folder']}")
                 return response.json() if response.status_code == 200 else {"files": []}
 
         except requests.exceptions.Timeout:
