@@ -3,6 +3,8 @@ import whisper
 import os
 import json
 import requests
+import threading
+import concurrent.futures
 from datetime import datetime
 
 print("Loading Whisper model...")
@@ -15,19 +17,53 @@ OBSIDIAN_PORT = os.environ.get("OBSIDIAN_PORT", "27123")
 OBSIDIAN_BASE_URL = f"http://{OBSIDIAN_HOST}:{OBSIDIAN_PORT}"
 ARCHIVE_DIR = "/watch/input/processed"
 
+# Timeout settings — adjust these based on your audio file lengths
+WHISPER_TIMEOUT_SECONDS = 600   # 10 min max for transcription
+CLAUDE_TIMEOUT_SECONDS = 120    # 2 min max for Claude response
+OBSIDIAN_TIMEOUT_SECONDS = 30   # 30 sec max for Obsidian API calls
+
+
 def transcribe_audio(file_path):
+    """Run Whisper in a thread with a timeout so it can't hang forever."""
     print(f"[TRANSCRIBING] {file_path}")
-    result = whisper_model.transcribe(file_path)
-    text = result["text"]
-    print(f"[TRANSCRIPT] Length: {len(text)} chars — Preview: {text[:200]}")
-    return text
+
+    def run_whisper():
+        result = whisper_model.transcribe(file_path, fp16=False)
+        return result["text"]
+
+    with concurrent.futures.ThreadPoolExecutor(max_workers=1) as executor:
+        future = executor.submit(run_whisper)
+        try:
+            transcript = future.result(timeout=WHISPER_TIMEOUT_SECONDS)
+            print(f"[TRANSCRIBING] Complete. Length: {len(transcript)} characters")
+            return transcript
+        except concurrent.futures.TimeoutError:
+            print(f"[ERROR] Whisper timed out after {WHISPER_TIMEOUT_SECONDS} seconds")
+            raise RuntimeError(f"Transcription timed out for {file_path}")
 
 
 def create_obsidian_note_via_mcp(filename, transcript):
-    client = anthropic.Anthropic(api_key=ANTHROPIC_API_KEY)
+    """Call Claude with explicit timeouts on every request."""
+
+    # Truncate very long transcripts to avoid Claude timeouts
+    MAX_TRANSCRIPT_CHARS = 12000
+    if len(transcript) > MAX_TRANSCRIPT_CHARS:
+        print(f"[WARNING] Transcript too long ({len(transcript)} chars), truncating to {MAX_TRANSCRIPT_CHARS}")
+        transcript = transcript[:MAX_TRANSCRIPT_CHARS] + "\n\n[Transcript truncated due to length]"
+
+    client = anthropic.Anthropic(
+        api_key=ANTHROPIC_API_KEY,
+        timeout=anthropic.Timeout(
+            connect=10.0,       # 10 seconds to connect
+            read=CLAUDE_TIMEOUT_SECONDS,
+            write=30.0,
+            pool=5.0
+        )
+    )
+
     timestamp = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
     base_name = os.path.splitext(filename)[0]
-    note_title = datetime.now().strftime("%Y-%m-%d") + " - " + base_name
+    note_title = f"{datetime.now().strftime('%Y-%m-%d')} - {base_name}"
 
     tools = [
         {
@@ -36,8 +72,14 @@ def create_obsidian_note_via_mcp(filename, transcript):
             "input_schema": {
                 "type": "object",
                 "properties": {
-                    "path": {"type": "string", "description": "File path within the vault"},
-                    "content": {"type": "string", "description": "Full markdown content of the note"}
+                    "path": {
+                        "type": "string",
+                        "description": "File path within vault e.g. Audio Summaries/my-note.md"
+                    },
+                    "content": {
+                        "type": "string",
+                        "description": "Full markdown content of the note"
+                    }
                 },
                 "required": ["path", "content"]
             }
@@ -48,7 +90,10 @@ def create_obsidian_note_via_mcp(filename, transcript):
             "input_schema": {
                 "type": "object",
                 "properties": {
-                    "folder": {"type": "string", "description": "Folder path to list"}
+                    "folder": {
+                        "type": "string",
+                        "description": "Folder path to list"
+                    }
                 },
                 "required": ["folder"]
             }
@@ -56,38 +101,39 @@ def create_obsidian_note_via_mcp(filename, transcript):
     ]
 
     def handle_tool_call(tool_name, tool_input):
-        if tool_name == "obsidian_create_note":
-            path = tool_input["path"]
-            content = tool_input["content"]
-            note_headers = {
-                "Authorization": f"Bearer {OBSIDIAN_API_KEY}",
-                "Content-Type": "text/markdown"
-            }
-            response = requests.put(
-                f"{OBSIDIAN_BASE_URL}/vault/{path}",
-                headers=note_headers,
-                data=content.encode("utf-8")
-            )
-            print(f"[API RESPONSE] Status: {response.status_code}, Body: {response.text}")
-            return {"success": response.status_code in [200, 201, 204], "status": response.status_code}
-        elif tool_name == "obsidian_list_notes":
-            folder = tool_input["folder"]
-            list_headers = {
-                "Authorization": f"Bearer {OBSIDIAN_API_KEY}",
-                "Content-Type": "application/json"
-            }
-            response = requests.get(
-                f"{OBSIDIAN_BASE_URL}/vault/{folder}/",
-                headers=list_headers
-            )
-            if response.status_code == 200:
-                return response.json()
-            return {"files": []}
+        headers = {
+            "Authorization": f"Bearer {OBSIDIAN_API_KEY}",
+            "Content-Type": "application/json"
+        }
+        try:
+            if tool_name == "obsidian_create_note":
+                response = requests.put(
+                    f"{OBSIDIAN_BASE_URL}/vault/{tool_input['path']}",
+                    headers=headers,
+                    data=tool_input["content"].encode("utf-8"),
+                    timeout=OBSIDIAN_TIMEOUT_SECONDS
+                )
+                return {"success": response.status_code in [200, 201, 204], "status": response.status_code}
+
+            elif tool_name == "obsidian_list_notes":
+                response = requests.get(
+                    f"{OBSIDIAN_BASE_URL}/vault/{tool_input['folder']}/",
+                    headers=headers,
+                    timeout=OBSIDIAN_TIMEOUT_SECONDS
+                )
+                return response.json() if response.status_code == 200 else {"files": []}
+
+        except requests.exceptions.Timeout:
+            print(f"[ERROR] Obsidian API timed out on {tool_name}")
+            return {"error": "timeout", "files": []}
+        except requests.exceptions.ConnectionError:
+            print(f"[ERROR] Cannot connect to Obsidian. Is it open?")
+            return {"error": "connection_refused", "files": []}
 
     messages = [
         {
             "role": "user",
-            "content": f"""You are an Obsidian note manager. You MUST call the obsidian_create_note tool to create a note — do not write the note content in your reply.
+            "content": f"""You are an Obsidian note manager. Create a structured note for this audio recording.
 
 Audio file: {filename}
 Recorded: {timestamp}
@@ -96,44 +142,42 @@ Transcript:
 {transcript}
 
 Instructions:
-1. Call obsidian_create_note with path: Plaud Notes/{note_title}.md
-2. The note content must include:
-   - YAML frontmatter with created date, source filename, and relevant tags
-   - The full transcript at the bottom under a Transcript heading
-3. Use the following template for the note body. If nothing is identified for a section write Nothing to report:
-
-## Notable Recognitions for Safety, Environmental, or Reliability - Impacting Performance this week:
-
-## Significant Operational Upsets, Releases, or notable events this week:
-
-## Any needs for additional support, including manpower constraints:
-
-## Upcoming events, including maintenance tasks for the next week or major maintenance coming up that needs to be communicated:
-
-## Additional Comments:
-
-4. Use proper Obsidian markdown including wiki-links where appropriate
-5. You MUST call obsidian_create_note — this is required, do not skip it."""
+1. List existing notes in "Audio Summaries" folder first
+2. Create a new note at: Audio Summaries/{note_title}.md
+3. Include: YAML frontmatter, 2-3 sentence summary, key points, action items, [[wiki-links]] to related notes, full transcript at bottom
+4. Be concise and efficient — complete this in as few tool calls as possible"""
         }
     ]
 
-    print("[CLAUDE MCP] Claude is creating your Obsidian note...")
+    print("[CLAUDE] Sending to Claude API...")
+    max_iterations = 5  # Prevent infinite loops
+    iteration = 0
 
-    while True:
-        response = client.messages.create(
-            model="claude-sonnet-4-6",
-            max_tokens=4096,
-            tools=tools,
-            messages=messages
-        )
+    while iteration < max_iterations:
+        iteration += 1
+        try:
+            response = client.messages.create(
+                model="claude-sonnet-4-6",
+                max_tokens=32000,
+                tools=tools,
+                messages=messages
+            )
+        except anthropic.APITimeoutError:
+            print(f"[ERROR] Claude API timed out on iteration {iteration}")
+            raise RuntimeError("Claude API timed out")
+        except anthropic.APIConnectionError as e:
+            print(f"[ERROR] Claude API connection error: {e}")
+            raise
+
         if response.stop_reason == "end_turn":
-            print("[CLAUDE MCP] Note creation complete.")
+            print("[CLAUDE] Note creation complete.")
             break
+
         if response.stop_reason == "tool_use":
             tool_results = []
             for block in response.content:
                 if block.type == "tool_use":
-                    print(f"[TOOL] Claude is calling: {block.name}")
+                    print(f"[TOOL] Calling: {block.name}")
                     result = handle_tool_call(block.name, block.input)
                     tool_results.append({
                         "type": "tool_result",
@@ -143,20 +187,36 @@ Instructions:
             messages.append({"role": "assistant", "content": response.content})
             messages.append({"role": "user", "content": tool_results})
         else:
+            print(f"[WARNING] Unexpected stop reason: {response.stop_reason}")
             break
+
 
 def archive_audio(file_path):
     os.makedirs(ARCHIVE_DIR, exist_ok=True)
     dest = os.path.join(ARCHIVE_DIR, os.path.basename(file_path))
     os.rename(file_path, dest)
-    print(f"[ARCHIVED] Audio moved to: {dest}")
+    print(f"[ARCHIVED] {os.path.basename(file_path)}")
+
 
 def process_audio_file(file_path):
     filename = os.path.basename(file_path)
+    print(f"\n{'='*50}")
+    print(f"[START] Processing: {filename}")
+    print(f"[TIME] {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}")
+    print(f"{'='*50}")
+
     try:
         transcript = transcribe_audio(file_path)
         create_obsidian_note_via_mcp(filename, transcript)
         archive_audio(file_path)
-        print(f"[DONE] {filename} processed successfully.")
+        print(f"[DONE] {filename} completed successfully.\n")
     except Exception as e:
         print(f"[ERROR] Failed to process {filename}: {e}")
+        # Move to an error folder instead of leaving it in the inbox
+        error_dir = "/watch/input/errors"
+        os.makedirs(error_dir, exist_ok=True)
+        try:
+            os.rename(file_path, os.path.join(error_dir, filename))
+            print(f"[ERROR] File moved to errors folder for review")
+        except Exception:
+            pass
