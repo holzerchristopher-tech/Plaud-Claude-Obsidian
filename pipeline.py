@@ -18,8 +18,8 @@ OBSIDIAN_BASE_URL = f"http://{OBSIDIAN_HOST}:{OBSIDIAN_PORT}"
 ARCHIVE_DIR = "/watch/input/processed"
 
 # Timeout settings — adjust these based on your audio file lengths
-WHISPER_TIMEOUT_SECONDS = 600   # 10 min max for transcription
-CLAUDE_TIMEOUT_SECONDS = 300    # 5 min max for Claude response (allow for large transcripts)
+WHISPER_TIMEOUT_SECONDS = 900   # 10 min max for transcription
+CLAUDE_TIMEOUT_SECONDS = 900    # 5 min max for Claude response (allow for large transcripts)
 OBSIDIAN_TIMEOUT_SECONDS = 30   # 30 sec max for Obsidian API calls
 
 
@@ -46,7 +46,7 @@ def create_obsidian_note_via_mcp(filename, transcript):
     """Call Claude with explicit timeouts on every request."""
 
     # Truncate very long transcripts as a safety guard
-    MAX_TRANSCRIPT_CHARS = 80000
+    MAX_TRANSCRIPT_CHARS = 100000
     if len(transcript) > MAX_TRANSCRIPT_CHARS:
         print(f"[WARNING] Transcript too long ({len(transcript)} chars), truncating to {MAX_TRANSCRIPT_CHARS}")
         transcript = transcript[:MAX_TRANSCRIPT_CHARS] + "\n\n[Transcript truncated due to length]"
@@ -158,7 +158,7 @@ Instructions:
         try:
             response = client.messages.create(
                 model="claude-sonnet-4-6",
-                max_tokens=30000,
+                max_tokens=45000,
                 tools=tools,
                 messages=messages
             )
