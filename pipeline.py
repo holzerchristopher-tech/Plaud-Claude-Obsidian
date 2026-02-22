@@ -3,11 +3,14 @@ import whisper
 import os
 import json
 import tempfile
+import subprocess
+import numpy as np
+import torch
 import requests
 import threading
 import concurrent.futures
 from datetime import datetime
-from silero_vad import load_silero_vad, read_audio as vad_read_audio, get_speech_timestamps, collect_chunks, save_audio as vad_save_audio
+from silero_vad import load_silero_vad, get_speech_timestamps, collect_chunks, save_audio as vad_save_audio
 
 print("Loading Whisper model...")
 whisper_model = whisper.load_model("base")
@@ -28,6 +31,24 @@ CLAUDE_TIMEOUT_SECONDS = 900    # 15 min max for Claude response (allow for larg
 OBSIDIAN_TIMEOUT_SECONDS = 30   # 30 sec max for Obsidian API calls
 
 
+def load_audio_16k(file_path):
+    """Load any audio format as a 16kHz mono float32 tensor via ffmpeg.
+
+    Bypasses torchaudio audio I/O (broken in torchaudio >= 2.9) by piping
+    raw PCM data directly from ffmpeg into a torch tensor.
+    """
+    cmd = [
+        "ffmpeg", "-y", "-i", file_path,
+        "-ar", "16000",   # resample to 16kHz
+        "-ac", "1",       # mono
+        "-f", "f32le",    # raw 32-bit float little-endian
+        "-"               # output to stdout
+    ]
+    result = subprocess.run(cmd, capture_output=True, check=True)
+    audio = np.frombuffer(result.stdout, dtype=np.float32).copy()
+    return torch.from_numpy(audio)
+
+
 def strip_silence(file_path):
     """Use Silero VAD to remove non-speech segments before transcription.
 
@@ -37,7 +58,7 @@ def strip_silence(file_path):
     """
     SAMPLING_RATE = 16000
     try:
-        wav = vad_read_audio(file_path, sampling_rate=SAMPLING_RATE)
+        wav = load_audio_16k(file_path)
         speech_timestamps = get_speech_timestamps(
             wav,
             vad_model,
