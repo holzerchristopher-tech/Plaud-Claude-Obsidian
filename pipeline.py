@@ -28,7 +28,16 @@ def transcribe_audio(file_path):
     print(f"[TRANSCRIBING] {file_path}")
 
     def run_whisper():
-        result = whisper_model.transcribe(file_path, fp16=False)
+        result = whisper_model.transcribe(
+            file_path,
+            fp16=False,
+            temperature=0,
+            beam_size=1,
+            best_of=1,
+            condition_on_previous_text=False,
+            no_speech_threshold=0.8,
+            compression_ratio_threshold=2.4,
+        )
         return result["text"]
 
     with concurrent.futures.ThreadPoolExecutor(max_workers=1) as executor:
