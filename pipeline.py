@@ -2,13 +2,18 @@ import anthropic
 import whisper
 import os
 import json
+import tempfile
 import requests
 import threading
 import concurrent.futures
 from datetime import datetime
+from silero_vad import load_silero_vad, read_audio as vad_read_audio, get_speech_timestamps, collect_chunks, save_audio as vad_save_audio
 
 print("Loading Whisper model...")
 whisper_model = whisper.load_model("base")
+
+print("Loading Silero VAD model...")
+vad_model = load_silero_vad()
 
 ANTHROPIC_API_KEY = os.environ["ANTHROPIC_API_KEY"]
 OBSIDIAN_API_KEY = os.environ["OBSIDIAN_API_KEY"]
@@ -19,26 +24,77 @@ ARCHIVE_DIR = "/watch/input/processed"
 
 # Timeout settings — adjust these based on your audio file lengths
 WHISPER_TIMEOUT_SECONDS = 900   # 15 min max for transcription
-CLAUDE_TIMEOUT_SECONDS = 900    # 5 min max for Claude response (allow for large transcripts)
+CLAUDE_TIMEOUT_SECONDS = 900    # 15 min max for Claude response (allow for large transcripts)
 OBSIDIAN_TIMEOUT_SECONDS = 30   # 30 sec max for Obsidian API calls
+
+
+def strip_silence(file_path):
+    """Use Silero VAD to remove non-speech segments before transcription.
+
+    Returns (path, is_temp) where path is either the original file or a
+    cleaned temp WAV, and is_temp indicates whether the caller must delete it.
+    Falls back to the original file on any error.
+    """
+    SAMPLING_RATE = 16000
+    try:
+        wav = vad_read_audio(file_path, sampling_rate=SAMPLING_RATE)
+        speech_timestamps = get_speech_timestamps(
+            wav,
+            vad_model,
+            sampling_rate=SAMPLING_RATE,
+            threshold=0.5,
+            min_speech_duration_ms=250,
+            min_silence_duration_ms=200,
+            speech_pad_ms=200,
+        )
+
+        if not speech_timestamps:
+            print("[VAD] No speech detected, using original file")
+            return file_path, False
+
+        total_samples = len(wav)
+        speech_samples = sum(ts["end"] - ts["start"] for ts in speech_timestamps)
+        kept_pct = 100.0 * speech_samples / total_samples
+
+        if kept_pct > 95:
+            print(f"[VAD] Only {100 - kept_pct:.1f}% silence found, using original file")
+            return file_path, False
+
+        print(f"[VAD] Kept {kept_pct:.1f}% of audio ({len(speech_timestamps)} speech segments)")
+        speech_audio = collect_chunks(speech_timestamps, wav)
+        tmp = tempfile.NamedTemporaryFile(suffix=".wav", delete=False)
+        tmp_path = tmp.name
+        tmp.close()
+        vad_save_audio(tmp_path, speech_audio, sampling_rate=SAMPLING_RATE)
+        return tmp_path, True
+
+    except Exception as e:
+        print(f"[VAD] Failed ({e}), using original file")
+        return file_path, False
 
 
 def transcribe_audio(file_path):
     """Run Whisper in a thread with a timeout so it can't hang forever."""
     print(f"[TRANSCRIBING] {file_path}")
 
+    cleaned_path, is_temp = strip_silence(file_path)
+
     def run_whisper():
-        result = whisper_model.transcribe(
-            file_path,
-            fp16=False,
-            temperature=0,
-            beam_size=1,
-            best_of=1,
-            condition_on_previous_text=False,
-            no_speech_threshold=0.8,
-            compression_ratio_threshold=2.4,
-        )
-        return result["text"]
+        try:
+            result = whisper_model.transcribe(
+                cleaned_path,
+                fp16=False,
+                temperature=0,
+                beam_size=1,
+                best_of=1,
+                condition_on_previous_text=False,
+                no_speech_threshold=0.8,
+                compression_ratio_threshold=2.4,
+            )
+            return result["text"]
+        finally:
+            if is_temp and os.path.exists(cleaned_path):
+                os.unlink(cleaned_path)
 
     with concurrent.futures.ThreadPoolExecutor(max_workers=1) as executor:
         future = executor.submit(run_whisper)
@@ -47,6 +103,8 @@ def transcribe_audio(file_path):
             print(f"[TRANSCRIBING] Complete. Length: {len(transcript)} characters")
             return transcript
         except concurrent.futures.TimeoutError:
+            if is_temp and os.path.exists(cleaned_path):
+                os.unlink(cleaned_path)
             print(f"[ERROR] Whisper timed out after {WHISPER_TIMEOUT_SECONDS} seconds")
             raise RuntimeError(f"Transcription timed out for {file_path}")
 
@@ -72,7 +130,7 @@ def create_obsidian_note_via_mcp(filename, transcript):
 
     timestamp = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
     base_name = os.path.splitext(filename)[0]
-    note_title = f"{datetime.now().strftime('%Y-%m-%d')} - {base_name}"
+    note_title = f"{datetime.now().strftime('%m-%d-%y')} - {base_name}"
 
     tools = [
         {
@@ -213,7 +271,7 @@ def process_audio_file(file_path):
     filename = os.path.basename(file_path)
     print(f"\n{'='*50}")
     print(f"[START] Processing: {filename}")
-    print(f"[TIME] {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}")
+    print(f"[TIME] {datetime.now().strftime('%m-%d-%y %H:%M:%S')}")
     print(f"{'='*50}")
 
     try:

@@ -16,6 +16,9 @@ RUN pip install --no-cache-dir \
 RUN pip install --no-cache-dir \
     torch torchaudio --index-url https://download.pytorch.org/whl/cpu
 
+RUN pip install --no-cache-dir \
+    silero-vad
+
 COPY watcher.py pipeline.py ./
 
 CMD ["python", "-u", "watcher.py"]
