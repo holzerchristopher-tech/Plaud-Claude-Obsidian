@@ -10,7 +10,8 @@ import requests
 import threading
 import concurrent.futures
 from datetime import datetime
-from silero_vad import load_silero_vad, get_speech_timestamps, collect_chunks, save_audio as vad_save_audio
+import wave
+from silero_vad import load_silero_vad, get_speech_timestamps, collect_chunks
 
 print("Loading Whisper model...")
 whisper_model = whisper.load_model("base")
@@ -47,6 +48,19 @@ def load_audio_16k(file_path):
     result = subprocess.run(cmd, capture_output=True, check=True)
     audio = np.frombuffer(result.stdout, dtype=np.float32).copy()
     return torch.from_numpy(audio)
+
+
+def save_audio_wav(path, audio_tensor, sampling_rate=16000):
+    """Save a 1D float32 torch tensor as a 16-bit WAV using stdlib wave module.
+
+    Avoids torchaudio save (broken in torchaudio >= 2.9 without torchcodec).
+    """
+    audio_int16 = (audio_tensor.numpy() * 32767).astype(np.int16)
+    with wave.open(path, "wb") as wf:
+        wf.setnchannels(1)
+        wf.setsampwidth(2)
+        wf.setframerate(sampling_rate)
+        wf.writeframes(audio_int16.tobytes())
 
 
 def strip_silence(file_path):
@@ -86,7 +100,7 @@ def strip_silence(file_path):
         tmp = tempfile.NamedTemporaryFile(suffix=".wav", delete=False)
         tmp_path = tmp.name
         tmp.close()
-        vad_save_audio(tmp_path, speech_audio, sampling_rate=SAMPLING_RATE)
+        save_audio_wav(tmp_path, speech_audio, SAMPLING_RATE)
         return tmp_path, True
 
     except Exception as e:
