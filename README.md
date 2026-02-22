@@ -92,7 +92,7 @@ npm install -g mcp-obsidian
 ANTHROPIC_API_KEY=your_anthropic_key_here
 OBSIDIAN_API_KEY=your_obsidian_rest_api_key_here
 OBSIDIAN_HOST=host.docker.internal
-OBSIDIAN_PORT=27124
+OBSIDIAN_PORT=27123
 
 ### 5. Create your mcp-config.json from the example
 cp mcp-config.example.json mcp-config.json

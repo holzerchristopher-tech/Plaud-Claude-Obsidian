@@ -18,7 +18,7 @@ OBSIDIAN_BASE_URL = f"http://{OBSIDIAN_HOST}:{OBSIDIAN_PORT}"
 ARCHIVE_DIR = "/watch/input/processed"
 
 # Timeout settings — adjust these based on your audio file lengths
-WHISPER_TIMEOUT_SECONDS = 900   # 10 min max for transcription
+WHISPER_TIMEOUT_SECONDS = 900   # 15 min max for transcription
 CLAUDE_TIMEOUT_SECONDS = 900    # 5 min max for Claude response (allow for large transcripts)
 OBSIDIAN_TIMEOUT_SECONDS = 30   # 30 sec max for Obsidian API calls
 
