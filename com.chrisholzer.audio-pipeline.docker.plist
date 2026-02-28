@@ -1,0 +1,28 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+    <key>Label</key>
+    <string>com.chrisholzer.audio-pipeline.docker</string>
+
+    <!-- Waits 30s for Docker Desktop to fully start, then brings up the container -->
+    <key>ProgramArguments</key>
+    <array>
+        <string>/bin/bash</string>
+        <string>-lc</string>
+        <string>sleep 30 &amp;&amp; cd "$HOME/audio-pipeline" &amp;&amp; docker-compose up -d</string>
+    </array>
+
+    <key>RunAtLoad</key>
+    <true/>
+
+    <!-- One-shot: Docker keeps containers running via restart:unless-stopped -->
+    <key>KeepAlive</key>
+    <false/>
+
+    <key>StandardOutPath</key>
+    <string>/tmp/audio-pipeline-docker.log</string>
+    <key>StandardErrorPath</key>
+    <string>/tmp/audio-pipeline-docker.log</string>
+</dict>
+</plist>

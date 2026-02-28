@@ -1,0 +1,32 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+    <key>Label</key>
+    <string>com.chrisholzer.audio-pipeline.watcher</string>
+
+    <!-- Runs icloud_watcher.py as a login shell so PATH and env vars are available -->
+    <key>ProgramArguments</key>
+    <array>
+        <string>/bin/bash</string>
+        <string>-lc</string>
+        <string>exec python3 "$HOME/audio-pipeline/icloud_watcher.py"</string>
+    </array>
+
+    <key>RunAtLoad</key>
+    <true/>
+
+    <!-- Restart automatically if the watcher crashes -->
+    <key>KeepAlive</key>
+    <true/>
+
+    <!-- Log output goes to the same log file the watcher uses -->
+    <key>StandardOutPath</key>
+    <string>/Users/Shared/audio-pipeline-watcher.log</string>
+    <key>StandardErrorPath</key>
+    <string>/Users/Shared/audio-pipeline-watcher.log</string>
+
+    <key>WorkingDirectory</key>
+    <string>/tmp</string>
+</dict>
+</plist>
