@@ -1,0 +1,36 @@
+{
+  "id": "plaud-claude-obsidian",
+  "name": "Plaud Claude Obsidian",
+  "version": "1.0.0",
+  "description": "A plugin for Obsidian that integrates with Claude and Plaud APIs.",
+  "main": "dist/main.js",
+  "scripts": {
+    "build": "esbuild src/main.ts --bundle --outfile=dist/main.js",
+    "watch": "esbuild src/main.ts --bundle --outfile=dist/main.js --watch"
+  },
+  "author": "G9KBytes-Labs",
+  "license": "MIT",
+  "permissions": [
+    "read",
+    "write",
+    "append"
+  ],
+  "obsidian": {
+    "apiVersion": "1.0.0",
+    "minAppVersion": "0.12.0",
+    "maxAppVersion": "0.15.0",
+    "id": "plaud-claude-obsidian",
+    "name": "Plaud Claude Obsidian",
+    "description": "Integrates Claude and Plaud APIs into Obsidian.",
+    "version": "1.0.0",
+    "author": "G9KBytes-Labs",
+    "homepage": "https://github.com/G9KBytes-Labs/Plaud-Claude-Obsidian",
+    "repository": "https://github.com/G9KBytes-Labs/Plaud-Claude-Obsidian",
+    "keywords": [
+      "obsidian",
+      "plugin",
+      "claude",
+      "plaud"
+    ]
+  }
+}

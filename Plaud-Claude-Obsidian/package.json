@@ -1,0 +1,29 @@
+{
+  "name": "plaud-claude-obsidian",
+  "version": "1.0.0",
+  "description": "A plugin for Obsidian that integrates with Claude and Plaud APIs.",
+  "main": "src/main.ts",
+  "scripts": {
+    "build": "esbuild src/main.ts --bundle --outfile=dist/main.js",
+    "watch": "esbuild src/main.ts --bundle --outfile=dist/main.js --watch",
+    "lint": "eslint . --ext .ts",
+    "test": "jest"
+  },
+  "keywords": [
+    "obsidian",
+    "plugin",
+    "claude",
+    "plaud"
+  ],
+  "author": "G9KBytes-Labs",
+  "license": "MIT",
+  "dependencies": {
+    "axios": "^0.21.1"
+  },
+  "devDependencies": {
+    "typescript": "^4.5.2",
+    "esbuild": "^0.14.0",
+    "eslint": "^7.32.0",
+    "jest": "^27.0.6"
+  }
+}
