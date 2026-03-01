@@ -55,7 +55,7 @@ def save_audio_wav(path, audio_tensor, sampling_rate=16000):
 
     Avoids torchaudio save (broken in torchaudio >= 2.9 without torchcodec).
     """
-    audio_int16 = (audio_tensor.numpy() * 32767).astype(np.int16)
+    audio_int16 = (np.clip(audio_tensor.numpy(), -1.0, 1.0) * 32767).astype(np.int16)
     with wave.open(path, "wb") as wf:
         wf.setnchannels(1)
         wf.setsampwidth(2)

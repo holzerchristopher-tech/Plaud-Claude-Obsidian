@@ -8,9 +8,7 @@
     <!-- Runs icloud_watcher.py as a login shell so PATH and env vars are available -->
     <key>ProgramArguments</key>
     <array>
-        <string>/bin/bash</string>
-        <string>-lc</string>
-        <string>exec python3 "$HOME/audio-pipeline/icloud_watcher.py"</string>
+        <string>/Users/chrisholzermini/audio-pipeline/ICloudWatcher.app/Contents/MacOS/ICloudWatcher</string>
     </array>
 
     <key>RunAtLoad</key>

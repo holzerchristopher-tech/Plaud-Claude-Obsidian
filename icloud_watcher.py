@@ -75,7 +75,7 @@ while True:
             # Force iCloud to download the file
             subprocess.run(["brctl", "download", src], capture_output=True)
 
-            # Wait up to 2 minutes for file to be fully available
+            # Wait up to ~3 minutes for file to be fully available (24 × ~8s per attempt)
             ready = False
             for attempt in range(24):
                 if is_fully_downloaded(src):
@@ -87,9 +87,10 @@ while True:
             if ready:
                 dst = os.path.join(LOCAL_DIR, fname)
                 shutil.copy2(src, dst)
+                os.remove(src)
                 processed.add(fname)
                 mark_processed(fname)
-                print(f"[COPIED] {fname} → ~/AudioProcessing")
+                print(f"[MOVED] {fname} → ~/AudioProcessing")
             else:
                 print(f"[TIMEOUT] {fname} — will retry next cycle")
 

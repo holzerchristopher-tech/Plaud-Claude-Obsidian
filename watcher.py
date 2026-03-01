@@ -63,6 +63,22 @@ class AudioHandler(FileSystemEventHandler):
 if __name__ == "__main__":
     print(f"[WATCHING] {WATCH_DIR} for audio files...")
     os.makedirs(WATCH_DIR, exist_ok=True)
+
+    # Process any files already present before the observer starts
+    for fname in os.listdir(WATCH_DIR):
+        ext = os.path.splitext(fname)[1].lower()
+        if ext not in SUPPORTED_EXTENSIONS:
+            continue
+        filepath = os.path.join(WATCH_DIR, fname)
+        if not os.path.isfile(filepath):
+            continue
+        print(f"[STARTUP] Found existing file: {fname}")
+        PROCESSED.add(fname)
+        if wait_for_file(filepath):
+            process_audio_file(filepath)
+        else:
+            PROCESSED.discard(fname)
+
     event_handler = AudioHandler()
     observer = Observer()
     observer.schedule(event_handler, WATCH_DIR, recursive=False)

@@ -1,0 +1,38 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+    <key>Label</key>
+    <string>com.chrisholzer.audio-pipeline.weekly-report</string>
+
+    <!-- Runs weekly_report.py as a login shell so PATH and env vars are available -->
+    <key>ProgramArguments</key>
+    <array>
+        <string>/bin/bash</string>
+        <string>-lc</string>
+        <string>exec python3 "$HOME/audio-pipeline/weekly_report.py"</string>
+    </array>
+
+    <!-- Tuesday = 2 in launchd (0=Sun, 1=Mon, 2=Tue, 3=Wed, 4=Thu, 5=Fri, 6=Sat) -->
+    <key>StartCalendarInterval</key>
+    <dict>
+        <key>Weekday</key>
+        <integer>2</integer>
+        <key>Hour</key>
+        <integer>10</integer>
+        <key>Minute</key>
+        <integer>0</integer>
+    </dict>
+
+    <key>RunAtLoad</key>
+    <false/>
+
+    <key>KeepAlive</key>
+    <false/>
+
+    <key>StandardOutPath</key>
+    <string>/Users/chrisholzermini/audio-pipeline/weekly_report.log</string>
+    <key>StandardErrorPath</key>
+    <string>/Users/chrisholzermini/audio-pipeline/weekly_report.log</string>
+</dict>
+</plist>

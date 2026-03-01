@@ -1,0 +1,2 @@
+#!/bin/bash
+exec python3 "$HOME/audio-pipeline/icloud_watcher.py"
