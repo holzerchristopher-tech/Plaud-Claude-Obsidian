@@ -1,12 +1,12 @@
 #!/usr/bin/env python3
-"""Weekly report generator — runs on host Mac, not in Docker.
+"""Daily report generator — runs on host Mac, not in Docker.
 
-1. Finds Daily Report notes from the past 7 days in Obsidian.
-2. Synthesizes them with Claude into a formatted weekly report.
-3. Saves the report to Obsidian (Audio Summaries/Weekly Report Summaries/).
-4. Emails it as styled HTML via Yahoo SMTP.
+1. Finds all audio summary notes from today in Audio Summaries/.
+2. Synthesizes them with Claude into a structured Daily Report.
+3. Saves the report to Obsidian (Audio Summaries/).
+4. Emails it as styled HTML.
 
-Schedule: every Tuesday at 10:00 AM via launchd.
+Schedule: every day at 11:00 PM via launchd.
 """
 
 import os
@@ -15,7 +15,7 @@ import sys
 import logging
 import smtplib
 import subprocess
-from datetime import datetime, timedelta
+from datetime import datetime
 from email.mime.multipart import MIMEMultipart
 from email.mime.text import MIMEText
 from typing import Optional
@@ -24,7 +24,7 @@ import requests
 import anthropic
 
 # ---------------------------------------------------------------------------
-# Logging — stdout is redirected to weekly_report.log by launchd
+# Logging — stdout is redirected to daily_report.log by launchd
 # ---------------------------------------------------------------------------
 logging.basicConfig(
     level=logging.INFO,
@@ -62,69 +62,83 @@ OBSIDIAN_HOST     = "localhost"
 OBSIDIAN_PORT     = os.environ.get("OBSIDIAN_PORT", "27123")
 OBSIDIAN_BASE_URL = f"http://{OBSIDIAN_HOST}:{OBSIDIAN_PORT}"
 
-OBSIDIAN_FOLDER         = "Audio Summaries"
-WEEKLY_REPORT_SUBFOLDER = "Weekly Report Summaries"
+OBSIDIAN_FOLDER = "Audio Summaries"
 
-RECIPIENT  = "Christopher.Holzer@Williams.com"
-SMTP_HOST  = os.environ.get("SMTP_HOST", "")
-SMTP_PORT  = int(os.environ.get("SMTP_PORT", "587"))
-SMTP_USER  = os.environ.get("SMTP_USER", "")
-SMTP_PASS  = os.environ.get("SMTP_PASSWORD", "")
-SMTP_FROM  = os.environ.get("SMTP_FROM", SMTP_USER)
+RECIPIENT = "Christopher.Holzer@Williams.com"
+SMTP_HOST = os.environ.get("SMTP_HOST", "")
+SMTP_PORT = int(os.environ.get("SMTP_PORT", "587"))
+SMTP_USER = os.environ.get("SMTP_USER", "")
+SMTP_PASS = os.environ.get("SMTP_PASSWORD", "")
+SMTP_FROM = os.environ.get("SMTP_FROM", SMTP_USER)
 
-LOOKBACK_DAYS = 7
-CLAUDE_MODEL  = "claude-sonnet-4-6"
+CLAUDE_MODEL = "claude-sonnet-4-6"
 
-# Compute date window once at startup
-NOW           = datetime.now()
-START_DATE    = NOW - timedelta(days=LOOKBACK_DAYS)
-END_DATE      = NOW - timedelta(days=1)
-START_DATE_STR = START_DATE.strftime("%m-%d-%Y")
-END_DATE_STR   = END_DATE.strftime("%m-%d-%Y")
+# Compute date strings once at startup
+# Override with REPORT_DATE=YYYY-MM-DD env var for backfills
+_date_override = os.environ.get("REPORT_DATE")
+NOW   = datetime.strptime(_date_override, "%Y-%m-%d") if _date_override else datetime.now()
+TODAY     = NOW.date()
+DATE_STR  = f"{NOW.month}-{NOW.day}-{NOW.year}"          # e.g. "3-7-2026"
+DATE_LONG = f"{NOW.strftime('%B')} {NOW.day}, {NOW.year}" # e.g. "March 7, 2026"
 
-REPORT_TITLE    = f"Weekly Report \u2014 {START_DATE_STR} to {END_DATE_STR}"
-REPORT_FILENAME = f"Weekly Report - {NOW.strftime('%m-%d-%Y')}.md"
-REPORT_VAULT_PATH = (
-    f"{OBSIDIAN_FOLDER}/{WEEKLY_REPORT_SUBFOLDER}/{REPORT_FILENAME}"
-)
+REPORT_TITLE      = f"Daily Report \u2014 {DATE_LONG}"
+REPORT_FILENAME   = f"{DATE_STR}-Daily Report.md"
+REPORT_VAULT_PATH = f"{OBSIDIAN_FOLDER}/{REPORT_FILENAME}"
 
 
 # ---------------------------------------------------------------------------
 # Claude synthesis prompt
 # ---------------------------------------------------------------------------
-def make_synthesis_prompt(start: str, end: str) -> str:
-    return f"""You are synthesizing daily operational reports into a single weekly report.
+def make_synthesis_prompt() -> str:
+    return f"""You are compiling multiple audio summary notes recorded today into a single structured Daily Report.
 
-Compile all daily reports provided into a single markdown document using the following exact format:
+Today's date: {DATE_LONG}
 
-# Weekly Report \u2014 {start} to {end}
+Combine all notes provided into a single markdown document using this exact format:
 
-## Notable Recognitions from Team
-[Summarize any team member shoutouts, achievements, or recognition mentioned across the daily reports]
+# \U0001F4CB Daily Report \u2014 {DATE_LONG}
 
-## Significant Operational Events
-[Summarize major incidents, outages, changes, or notable operational happenings from the week]
+---
 
-## Team Support Needs
-[List only current or upcoming support needs, active blockers, or resource requests that are still open. Do not report on past support events that have already been resolved.]
+## \U0001F4DD Overview
+[2-4 sentence summary of the day's key topics across all notes]
 
-## Upcoming Maintenance or Major Tasks
-[Summarize any scheduled maintenance, planned work, or major upcoming tasks mentioned]
+---
 
-## Additional Information
-[Include only information that is directly relevant to the report \u2014 operational, team, or task-related \u2014 that does not fit the above categories. Omit anything that is not pertinent to the work being reported on.]
+[For each distinct topic or source note, create a section:]
 
-Writing rules (apply to every section):
-- Each entry is a short paragraph, no more than 4 sentences.
-- Follow this structure for every paragraph:
-  - Topic: Begin with the date in Month-Day format (e.g., "Feb 22 \u2014"), followed by a brief description of the topic. Do not restate context already implied by the section heading.
-  - Actions: State any actions taken or repairs made related to the topic.
-  - Follow-up: State any actions mentioned that are still pending or will be completed. If none were mentioned, omit this sentence entirely.
-- Do not add filler, restate the section heading, or pad with transitional phrases.
-- In the Team Support Needs section specifically: Topic should describe the current need or active blocker, Actions should describe any steps already taken toward resolving it, and Follow-up should describe what is still required to close it out.
-- If a section has no relevant content from the daily reports, write "No items reported this week."
+## [Relevant emoji] [Topic Title]
 
-Output only the markdown document. Do not include any preamble or explanation."""
+[Brief summary paragraph \u2014 1-3 sentences]
+
+### Key Points
+- [bullet points with specific details, numbers, unit names]
+
+### Action Items
+- [ ] [pending action items from this topic only]
+
+---
+
+## \u2705 All Action Items
+
+[Consolidated, deduplicated list of every open action item from all sections, grouped by topic]
+
+---
+
+## \U0001F517 Related Notes
+
+[Obsidian wiki-links for each source note, one per line, format: - [[filename without .md]]]
+
+---
+
+Writing rules:
+- Be concise and direct \u2014 operational report, not an essay.
+- Use relevant emojis for section headers (\U0001F6A8 incidents, \u2699\ufe0f equipment, \U0001F4B0 financial, \U0001F4DE calls, \U0001F4CC general notes).
+- Preserve all specific numbers, unit IDs, facility names, dollar amounts, and dates exactly as stated.
+- Consolidate duplicate action items; do not repeat them.
+- If a note covers non-operational content (goals, brainstorming), include it but label it clearly.
+- Do not add filler, preamble, or transitional phrases.
+- Output only the markdown document \u2014 no explanation before or after."""
 
 
 # ---------------------------------------------------------------------------
@@ -135,7 +149,7 @@ def _obsidian_headers():
 
 
 def list_notes(folder: str) -> list:
-    """Return list of bare filenames in the given vault folder."""
+    """Return list of filenames in the given vault folder."""
     url = f"{OBSIDIAN_BASE_URL}/vault/{folder}/"
     try:
         resp = requests.get(url, headers=_obsidian_headers(), timeout=30)
@@ -153,7 +167,7 @@ def list_notes(folder: str) -> list:
 
 
 def fetch_note(path: str) -> str:
-    """Fetch full markdown content of a note by its full vault path."""
+    """Fetch full markdown content of a note by its vault path."""
     url = f"{OBSIDIAN_BASE_URL}/vault/{path}"
     try:
         resp = requests.get(url, headers=_obsidian_headers(), timeout=30)
@@ -162,30 +176,6 @@ def fetch_note(path: str) -> str:
     except Exception as e:
         log.error("Failed to fetch note %s: %s", path, e)
         return ""
-
-
-def move_note(src_path: str, dest_folder: str) -> bool:
-    """Move a note to dest_folder by copying then deleting the original."""
-    filename = os.path.basename(src_path)
-    dest_path = f"{dest_folder}/{filename}"
-    content = fetch_note(src_path)
-    if not content:
-        log.warning("Skipping move — could not fetch: %s", src_path)
-        return False
-    if not save_note(dest_path, content):
-        log.warning("Skipping move — failed to write destination: %s", dest_path)
-        return False
-    url = f"{OBSIDIAN_BASE_URL}/vault/{src_path}"
-    try:
-        resp = requests.delete(url, headers=_obsidian_headers(), timeout=30)
-        if resp.status_code in (200, 204):
-            log.info("Moved %s → %s", src_path, dest_path)
-            return True
-        log.warning("Delete failed HTTP %d for: %s", resp.status_code, src_path)
-        return False
-    except Exception as e:
-        log.error("Failed to delete %s: %s", src_path, e)
-        return False
 
 
 def save_note(path: str, content: str) -> bool:
@@ -209,18 +199,17 @@ def save_note(path: str, content: str) -> bool:
 
 
 # ---------------------------------------------------------------------------
-# Date filtering
+# Date / filename helpers
 # ---------------------------------------------------------------------------
 def parse_date_from_filename(filename: str) -> Optional[datetime]:
     """Parse date prefix from filenames like:
-      MM-DD-YYYY - name.md   (space-dash-space separator)
-      MM-DD-YY - name.md
-      MM-DD-YYYY-name.md     (plain dash separator)
-      MM-DD-YY-name.md
+      M-D-YYYY-name.md
+      M-D-YY-name.md
+      M-D-YYYY - name.md
+      M-D-YY - name.md
     """
     basename = os.path.basename(filename)
     name = basename[:-3] if basename.endswith(".md") else basename
-    # Match a date prefix (M-D-YY or M-D-YYYY) followed by either " - " or "-<non-digit>"
     m = re.match(r'^(\d{1,2}-\d{1,2}-\d{2,4})(?:\s+-\s+|-(?=\D))', name)
     if not m:
         return None
@@ -233,12 +222,39 @@ def parse_date_from_filename(filename: str) -> Optional[datetime]:
     return None
 
 
+def is_today(filename: str) -> bool:
+    dt = parse_date_from_filename(filename)
+    return dt is not None and dt.date() == TODAY
+
+
 def is_daily_report(filename: str) -> bool:
     return "daily report" in os.path.basename(filename).lower()
 
 
-def is_within_lookback(dt: datetime) -> bool:
-    return dt >= (NOW - timedelta(days=LOOKBACK_DAYS))
+def is_markdown(filename: str) -> bool:
+    return os.path.basename(filename).endswith(".md")
+
+
+# ---------------------------------------------------------------------------
+# Build final report with frontmatter
+# ---------------------------------------------------------------------------
+def build_report_with_frontmatter(body: str, source_paths: list) -> str:
+    sources_yaml = "\n".join(
+        f"  - {os.path.basename(p)}" for p in source_paths
+    )
+    frontmatter = (
+        f"---\n"
+        f'title: "Daily Report - {DATE_LONG}"\n'
+        f"date: {TODAY.isoformat()}\n"
+        f"tags:\n"
+        f"  - daily-report\n"
+        f"  - audio-summary\n"
+        f"type: daily-report\n"
+        f"sources:\n"
+        f"{sources_yaml}\n"
+        f"---\n\n"
+    )
+    return frontmatter + body
 
 
 # ---------------------------------------------------------------------------
@@ -250,7 +266,7 @@ def synthesize_with_claude(notes: list) -> str:
         combined.append(f"### {os.path.basename(path)}\n\n{content}")
     notes_text = "\n\n---\n\n".join(combined)
 
-    prompt = make_synthesis_prompt(START_DATE_STR, END_DATE_STR)
+    prompt = make_synthesis_prompt()
 
     client = anthropic.Anthropic(
         api_key=ANTHROPIC_API_KEY,
@@ -281,11 +297,15 @@ def synthesize_with_claude(notes: list) -> str:
 # Email
 # ---------------------------------------------------------------------------
 def _markdown_to_html(md: str) -> str:
-    """Convert the structured report markdown to HTML for the email body."""
     html = []
     in_list = False
 
     for line in md.split("\n"):
+        # Skip YAML frontmatter lines
+        if line.startswith("---") or line.startswith("title:") or line.startswith("date:") \
+                or line.startswith("tags:") or line.startswith("type:") \
+                or line.startswith("sources:") or re.match(r"^  - ", line):
+            continue
         if line.startswith("# "):
             if in_list:
                 html.append("</ul>"); in_list = False
@@ -298,10 +318,10 @@ def _markdown_to_html(md: str) -> str:
             if in_list:
                 html.append("</ul>"); in_list = False
             html.append(f'<h3>{line[4:].strip()}</h3>')
-        elif re.match(r"^[-*] ", line):
+        elif re.match(r"^-\s+\[.\]\s+", line) or re.match(r"^[-*]\s+", line):
             if not in_list:
                 html.append("<ul>"); in_list = True
-            content = _inline(line[2:].strip())
+            content = _inline(re.sub(r"^[-*]\s+(\[.\]\s+)?", "", line))
             html.append(f"<li>{content}</li>")
         elif line.strip() == "":
             if in_list:
@@ -320,12 +340,13 @@ def _markdown_to_html(md: str) -> str:
 def _inline(text: str) -> str:
     text = re.sub(r"\*\*(.+?)\*\*", r"<strong>\1</strong>", text)
     text = re.sub(r"\*(.+?)\*",     r"<em>\1</em>",         text)
+    text = re.sub(r"\[\[(.+?)\]\]", r"\1", text)  # strip Obsidian wiki-links
     return text
 
 
 def _build_html(subject: str, body_md: str) -> str:
     body_html = _markdown_to_html(body_md)
-    generated = datetime.now().strftime("%B %d, %Y")
+    generated = f"{NOW.strftime('%B')} {NOW.day}, {NOW.year} at {NOW.strftime('%-I:%M %p')}"
     return f"""<!DOCTYPE html>
 <html lang="en">
 <head>
@@ -361,7 +382,7 @@ def _build_html(subject: str, body_md: str) -> str:
   <div class="body">
     {body_html}
   </div>
-  <div class="footer">Audio Pipeline &mdash; Weekly Report</div>
+  <div class="footer">Audio Pipeline &mdash; Daily Report</div>
 </div>
 </body>
 </html>"""
@@ -385,7 +406,7 @@ def _send_via_apple_mail(subject: str, body: str) -> None:
 
 def send_email(subject: str, body: str) -> None:
     if not all([SMTP_HOST, SMTP_USER, SMTP_PASS]):
-        log.warning("SMTP not configured — falling back to plain text via Apple Mail")
+        log.warning("SMTP not configured \u2014 falling back to plain text via Apple Mail")
         try:
             _send_via_apple_mail(subject, body)
             log.info("Email sent via Apple Mail.")
@@ -409,7 +430,7 @@ def send_email(subject: str, body: str) -> None:
             server.sendmail(SMTP_FROM, RECIPIENT, msg.as_string())
         log.info("Email sent successfully.")
     except Exception as e:
-        log.error("SMTP failed (%s) — falling back to Apple Mail", e)
+        log.error("SMTP failed (%s) \u2014 falling back to Apple Mail", e)
         try:
             _send_via_apple_mail(subject, body)
             log.info("Email sent via Apple Mail fallback.")
@@ -423,70 +444,69 @@ def send_email(subject: str, body: str) -> None:
 # ---------------------------------------------------------------------------
 def main():
     log.info("=" * 60)
-    log.info("Weekly report job starting")
-    log.info("Period: %s to %s", START_DATE_STR, END_DATE_STR)
+    log.info("Daily report job starting")
+    log.info("Date: %s", DATE_LONG)
 
-    # 1. List all notes in Audio Summaries/
+    # 1. List all files in Audio Summaries/
     all_files = list_notes(OBSIDIAN_FOLDER)
     log.info("Found %d total files in '%s'", len(all_files), OBSIDIAN_FOLDER)
 
-    # 2. Filter to Daily Report notes within the lookback window
+    # 2. Filter to today's audio summary notes (exclude daily reports and non-markdown)
     matching = []
     for f in all_files:
-        if not is_daily_report(f):
+        if not is_markdown(f):
+            log.debug("Skipping (not a markdown file): %s", f)
             continue
-        dt = parse_date_from_filename(f)
-        if dt is None:
-            log.debug("Skipping (unrecognized date format): %s", f)
+        if is_daily_report(f):
+            log.debug("Skipping (already a daily report): %s", f)
             continue
-        if not is_within_lookback(dt):
-            log.debug("Skipping (too old, %s): %s", dt.strftime("%Y-%m-%d"), f)
+        if not is_today(f):
+            log.debug("Skipping (not today): %s", f)
             continue
-        matching.append((f, dt))
+        matching.append(f)
 
     if not matching:
         log.info(
-            "No Daily Report notes found in the past %d days. Exiting without sending email.",
-            LOOKBACK_DAYS,
+            "No audio summary notes found for today (%s). Exiting without sending email.",
+            DATE_STR,
         )
         return
 
-    matching.sort(key=lambda x: x[1])
-    log.info("Matched %d Daily Report note(s):", len(matching))
-    for path, dt in matching:
-        log.info("  %s  (%s)", os.path.basename(path), dt.strftime("%Y-%m-%d"))
+    matching.sort()
+    log.info("Found %d note(s) for today:", len(matching))
+    for f in matching:
+        log.info("  %s", f)
 
-    # 3. Fetch full content of each note (list_notes returns bare filenames)
+    # 3. Fetch full content of each note
     notes_with_content = []
-    for path, _ in matching:
-        vault_path = f"{OBSIDIAN_FOLDER}/{path}"
+    for filename in matching:
+        vault_path = f"{OBSIDIAN_FOLDER}/{filename}"
         content = fetch_note(vault_path)
         if content:
             notes_with_content.append((vault_path, content))
         else:
-            log.warning("Empty or failed fetch for: %s", vault_path)
+            log.warning("Empty or failed fetch: %s", vault_path)
 
     if not notes_with_content:
-        log.error("No note content could be fetched. Exiting without sending email.")
+        log.error("No note content could be fetched. Exiting.")
         sys.exit(1)
 
     # 4. Synthesize with Claude
-    report_md = synthesize_with_claude(notes_with_content)
-    log.info("Claude synthesis complete (%d chars)", len(report_md))
+    report_body = synthesize_with_claude(notes_with_content)
+    log.info("Claude synthesis complete (%d chars)", len(report_body))
 
-    # 5. Save synthesized report to Obsidian
+    # 5. Prepend YAML frontmatter
+    source_paths = [path for path, _ in notes_with_content]
+    report_md = build_report_with_frontmatter(report_body, source_paths)
+
+    # 6. Save to Obsidian
     saved = save_note(REPORT_VAULT_PATH, report_md)
     if not saved:
         log.warning("Failed to save report to Obsidian \u2014 will still attempt email.")
 
-    # 6. Archive the daily reports that were included in the weekly report
-    log.info("Archiving %d daily report(s) to 'Plaud Notes Archive'...", len(notes_with_content))
-    for vault_path, _ in notes_with_content:
-        move_note(vault_path, "Plaud Notes Archive")
-
-    # 7. Email the report (use the in-memory markdown, not a re-read from Obsidian)
+    # 7. Email the report
     send_email(subject=REPORT_TITLE, body=report_md)
-    log.info("Weekly report job complete.")
+    log.info("Daily report job complete.")
 
 
 if __name__ == "__main__":

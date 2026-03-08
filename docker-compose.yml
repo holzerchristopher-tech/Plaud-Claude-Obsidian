@@ -11,3 +11,17 @@ services:
     extra_hosts:
       - "host.docker.internal:host-gateway"
     restart: unless-stopped
+    depends_on:
+      - ntfy
+
+  ntfy:
+    image: binwiederhier/ntfy
+    command: serve
+    volumes:
+      - ntfy-data:/var/lib/ntfy
+    ports:
+      - "8080:80"
+    restart: unless-stopped
+
+volumes:
+  ntfy-data:

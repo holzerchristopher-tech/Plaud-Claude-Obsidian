@@ -1,12 +1,32 @@
 import time
 import os
+import threading
 from watchdog.observers import Observer
 from watchdog.events import FileSystemEventHandler
-from pipeline import process_audio_file
+from pipeline import process_audio_file, generate_daily_report
 
-WATCH_DIR = "/watch/input"
+WATCH_DIR = os.environ.get("WATCH_DIR", os.path.expanduser("~/AudioProcessing"))
 SUPPORTED_EXTENSIONS = {".mp3", ".m4a", ".wav", ".ogg", ".flac"}
 PROCESSED = set()
+
+def _daily_report_scheduler():
+    """Background thread that runs generate_daily_report every day at 11pm."""
+    from datetime import datetime, timedelta
+    while True:
+        now = datetime.now()
+        target = now.replace(hour=23, minute=0, second=0, microsecond=0)
+        if now >= target:
+            target += timedelta(days=1)
+        wait_seconds = (target - now).total_seconds()
+        print(f"[DAILY REPORT] Next report scheduled at {target.strftime('%m-%d-%y 23:00')}")
+        time.sleep(wait_seconds)
+        generate_daily_report()
+
+
+def start_daily_report_scheduler():
+    t = threading.Thread(target=_daily_report_scheduler, daemon=True)
+    t.start()
+
 
 def wait_for_file(filepath, timeout=120):
     """Wait until file is fully written and not locked."""
@@ -58,7 +78,9 @@ class AudioHandler(FileSystemEventHandler):
             process_audio_file(filepath)
         else:
             print(f"[SKIPPED] File never became ready: {filepath}")
-            PROCESSED.discard(fname)
+
+        # Prune from PROCESSED — file is now archived or errored, won't re-trigger
+        PROCESSED.discard(fname)
 
 if __name__ == "__main__":
     print(f"[WATCHING] {WATCH_DIR} for audio files...")
@@ -76,8 +98,9 @@ if __name__ == "__main__":
         PROCESSED.add(fname)
         if wait_for_file(filepath):
             process_audio_file(filepath)
-        else:
-            PROCESSED.discard(fname)
+        PROCESSED.discard(fname)
+
+    start_daily_report_scheduler()
 
     event_handler = AudioHandler()
     observer = Observer()

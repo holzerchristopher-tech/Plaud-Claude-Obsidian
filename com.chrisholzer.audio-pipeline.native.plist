@@ -1,0 +1,29 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+    <key>Label</key>
+    <string>com.chrisholzer.audio-pipeline.native</string>
+
+    <key>ProgramArguments</key>
+    <array>
+        <string>/bin/bash</string>
+        <string>/Users/chrisholzermini/audio-pipeline/run_pipeline.sh</string>
+    </array>
+
+    <key>RunAtLoad</key>
+    <true/>
+
+    <!-- Restart automatically if the process crashes -->
+    <key>KeepAlive</key>
+    <true/>
+
+    <key>StandardOutPath</key>
+    <string>/Users/chrisholzermini/audio-pipeline/pipeline.log</string>
+    <key>StandardErrorPath</key>
+    <string>/Users/chrisholzermini/audio-pipeline/pipeline.log</string>
+
+    <key>WorkingDirectory</key>
+    <string>/Users/chrisholzermini/audio-pipeline</string>
+</dict>
+</plist>

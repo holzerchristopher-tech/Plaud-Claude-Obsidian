@@ -3,6 +3,7 @@
 mcp-config.json
 
 # Python
+venv/
 __pycache__/
 *.pyc
 *.pyo

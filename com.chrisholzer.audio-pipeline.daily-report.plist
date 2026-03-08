@@ -1,0 +1,36 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+    <key>Label</key>
+    <string>com.chrisholzer.audio-pipeline.daily-report</string>
+
+    <!-- Runs daily_report.py as a login shell so PATH and env vars are available -->
+    <key>ProgramArguments</key>
+    <array>
+        <string>/bin/bash</string>
+        <string>-lc</string>
+        <string>exec python3 "$HOME/audio-pipeline/daily_report.py"</string>
+    </array>
+
+    <!-- Every day at 11:00 PM -->
+    <key>StartCalendarInterval</key>
+    <dict>
+        <key>Hour</key>
+        <integer>23</integer>
+        <key>Minute</key>
+        <integer>0</integer>
+    </dict>
+
+    <key>RunAtLoad</key>
+    <false/>
+
+    <key>KeepAlive</key>
+    <false/>
+
+    <key>StandardOutPath</key>
+    <string>/Users/chrisholzermini/audio-pipeline/daily_report.log</string>
+    <key>StandardErrorPath</key>
+    <string>/Users/chrisholzermini/audio-pipeline/daily_report.log</string>
+</dict>
+</plist>
